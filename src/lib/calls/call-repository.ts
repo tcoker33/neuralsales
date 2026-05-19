@@ -134,6 +134,29 @@ async function updateProjection(input: {
   return ok(data as CallRow);
 }
 
+async function listEventsAfter(input: {
+  workspaceId: string;
+  callId: string;
+  afterSequence: number;
+  limit?: number;
+}): Promise<Result<CallEventRow[]>> {
+  const supabase = await createSupabaseServerClient();
+
+  const { data, error } = await supabase
+    .from("call_events")
+    .select(EVENT_COLUMNS)
+    .eq("workspace_id", input.workspaceId)
+    .eq("call_id", input.callId)
+    .gt("sequence", input.afterSequence)
+    .order("sequence", { ascending: true })
+    .limit(input.limit ?? 200);
+
+  if (error) {
+    return fail("call_event.list_failed", "Failed to list events.", error);
+  }
+  return ok((data ?? []) as CallEventRow[]);
+}
+
 async function listTranscripts(input: {
   workspaceId: string;
   callId: string;
@@ -162,5 +185,6 @@ export const CallRepository = {
   appendEvent,
   appendTranscript,
   updateProjection,
+  listEventsAfter,
   listTranscripts,
 };
