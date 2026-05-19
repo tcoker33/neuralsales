@@ -9,7 +9,7 @@ export type AssignAgentInput = {
 };
 
 const LEAD_COLUMNS =
-  "id, workspace_id, assigned_agent_id, status, first_name, last_name, email, phone, created_at, updated_at";
+  "id, workspace_id, assigned_agent_id, status, first_name, last_name, email, phone, ai_summary, created_at, updated_at";
 
 async function assignAgent(
   input: AssignAgentInput,
@@ -75,6 +75,47 @@ async function assignAgent(
   return ok(updated as LeadRow);
 }
 
+export type ApplyCallOutcomeInput = {
+  workspaceId: string;
+  leadId: string;
+  aiSummary: string;
+  status: "contacted" | "qualified";
+};
+
+async function applyCallOutcome(
+  input: ApplyCallOutcomeInput,
+): Promise<Result<LeadRow>> {
+  const supabase = await createSupabaseServerClient();
+
+  const { data, error } = await supabase
+    .from("leads")
+    .update({
+      ai_summary: input.aiSummary,
+      status: input.status,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", input.leadId)
+    .eq("workspace_id", input.workspaceId)
+    .select(LEAD_COLUMNS)
+    .single();
+
+  if (error) {
+    return fail(
+      "lead.update_failed",
+      "Failed to apply call outcome to lead.",
+      error,
+    );
+  }
+  if (!data) {
+    return fail(
+      "lead.update_failed",
+      "Lead outcome update returned no row.",
+    );
+  }
+  return ok(data as LeadRow);
+}
+
 export const LeadRepository = {
   assignAgent,
+  applyCallOutcome,
 };
