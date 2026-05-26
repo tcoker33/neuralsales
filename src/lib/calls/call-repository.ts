@@ -15,6 +15,64 @@ const EVENT_COLUMNS =
 const TRANSCRIPT_COLUMNS =
   "id, workspace_id, call_id, speaker, content, sequence, created_at";
 
+async function createCall(input: {
+  workspaceId: string;
+  leadId: string;
+  agentId: string;
+}): Promise<Result<CallRow>> {
+  const supabase = await createSupabaseServerClient();
+
+  const { data: lead, error: leadError } = await supabase
+    .from("leads")
+    .select("id, workspace_id")
+    .eq("id", input.leadId)
+    .maybeSingle();
+
+  if (leadError) {
+    return fail("lead.lookup_failed", "Failed to load lead.", leadError);
+  }
+  if (!lead) return fail("lead.not_found", "Lead does not exist.");
+  if (lead.workspace_id !== input.workspaceId) {
+    return fail(
+      "lead.workspace_mismatch",
+      "Lead does not belong to this workspace.",
+    );
+  }
+
+  const { data: agent, error: agentError } = await supabase
+    .from("agents")
+    .select("id, workspace_id")
+    .eq("id", input.agentId)
+    .maybeSingle();
+
+  if (agentError) {
+    return fail("agent.lookup_failed", "Failed to load agent.", agentError);
+  }
+  if (!agent) return fail("agent.not_found", "Agent does not exist.");
+  if (agent.workspace_id !== input.workspaceId) {
+    return fail(
+      "agent.workspace_mismatch",
+      "Agent does not belong to this workspace.",
+    );
+  }
+
+  const { data, error } = await supabase
+    .from("calls")
+    .insert({
+      workspace_id: input.workspaceId,
+      lead_id: input.leadId,
+      agent_id: input.agentId,
+      status: "pending",
+    })
+    .select(CALL_COLUMNS)
+    .single();
+
+  if (error) {
+    return fail("call.create_failed", "Failed to create call.", error);
+  }
+  return ok(data as CallRow);
+}
+
 async function getCall(input: {
   workspaceId: string;
   callId: string;
@@ -181,6 +239,7 @@ async function listTranscripts(input: {
 }
 
 export const CallRepository = {
+  createCall,
   getCall,
   appendEvent,
   appendTranscript,
